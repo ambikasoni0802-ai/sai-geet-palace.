@@ -44,11 +44,33 @@ label{font-size:13px;color:var(--mut);display:block;margin-bottom:4px}
 input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
 .ok{text-align:center;padding:40px 10px}.ok .big{font-size:54px}.ok code{background:var(--card);border:1px solid var(--line);padding:6px 12px;border-radius:8px;color:var(--gold)}
 footer{text-align:center;color:var(--mut);font-size:13px;padding:30px}
+.authwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 50% 0,rgba(212,175,95,.18),transparent 60%)}
+.authcard{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;width:100%;max-width:380px}
+.authcard h2{font-family:'Playfair Display',serif;margin:6px 0 4px}
+.authcard label{margin-top:10px}
+.autherr{background:rgba(179,64,58,.12);color:var(--bad);padding:10px 12px;border-radius:10px;font-size:13px;margin:10px 0}
+.logout{margin-left:6px;color:var(--mut)}
 </style>
 </head>
 <body>
-<nav id="nav"></nav>
-<div id="app"></div>
+<div id="auth" class="authwrap">
+  <div class="authcard">
+    <div class="tag">Sai Geet Palace</div>
+    <h2 id="authTitle">Login</h2>
+    <p class="mut" id="authSub">Login to book a flat or appointment.</p>
+    <div id="authErr" class="autherr" style="display:none"></div>
+    <label>Email</label><input id="aEm" type="email" autocomplete="email">
+    <label>Password</label><input id="aPw" type="password" autocomplete="current-password">
+    <button class="btn" style="width:100%;margin:14px 0 8px" id="authBtn" onclick="authGo()">Login</button>
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0"><div style="flex:1;height:1px;background:var(--line)"></div><span class="mut" style="font-size:12px">OR</span><div style="flex:1;height:1px;background:var(--line)"></div></div>
+    <button class="btn ghost" style="width:100%" onclick="authGoogle()">Continue with Google</button>
+    <p class="mut" style="text-align:center;font-size:14px;margin-top:12px">
+      <span id="authSwitch">New here? <a href="#" onclick="authMode('signup');return false">Create an account</a></span>
+    </p>
+  </div>
+</div>
+<nav id="nav" style="display:none"></nav>
+<div id="app" style="display:none"></div>
 <footer>© Sai Geet Palace. All rights reserved.</footer>
 <script>
 var FLOORS=7,KEY='sgp-booked',booked={},sel='',filt='all',$=function(i){return document.getElementById(i)};
@@ -57,7 +79,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(booked))}catch(e){}}
 function flats(){var l=[];for(var f=1;f<=FLOORS;f++)for(var i=1;i<=4;i++)l.push({id:f+'0'+i,f:f,t:i<=2?'1 BHK':'2 BHK'});return l}
 var TABS=[['home','Home'],['flats','Flats'],['book','Book Flat'],['appt','Appointment'],['history','History'],['contact','Contact']];
 function go(p){location.hash=p}
-function nav(p){$('nav').innerHTML='<span class="logo" onclick="go(\'home\')">Sai Geet Palace</span>'+TABS.map(function(t){return '<button class="'+(t[0]===p?'on':'')+'" onclick="go(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')}
+function nav(p){$('nav').innerHTML='<span class="logo" onclick="go(\'home\')">Sai Geet Palace</span>'+TABS.map(function(t){return '<button class="'+(t[0]===p?'on':'')+'" onclick="go(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'<button class="logout" onclick="authLogout()">Logout</button>'}
 var V={
 home:function(){var a=flats().filter(function(x){return!booked[x.id]}).length;
 return '<section class="hero"><div class="tag">Premium Residences</div><h1>Sai Geet Palace</h1><p class="mut" style="max-width:520px;margin:0 auto 24px">Thoughtfully designed 1 BHK and 2 BHK homes across 7 floors. Pick your flat, book online or schedule a site visit.</p><button class="btn" onclick="go(\'flats\')">View Flats</button><button class="btn ghost" onclick="go(\'appt\')">Book Appointment</button><div class="stats"><div class="stat"><b>7</b><span>Floors</span></div><div class="stat"><b>28</b><span>Flats</span></div><div class="stat"><b>'+a+'</b><span>Available</span></div></div></section>'},
@@ -99,7 +121,7 @@ function submitAppt(){
 if(!v('an')||!/^\d{10}$/.test(v('ap'))||!v('ad2')){alert('Please enter name, 10-digit mobile and date.');return}
 sendAppt()}
 function route(){var p=(location.hash||'#home').slice(1);if(!V[p])p='home';nav(p);$('app').innerHTML=V[p]();window.scrollTo(0,0)}
-window.onhashchange=route;route();
+window.onhashchange=route;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -121,7 +143,26 @@ async function sendAppt(){
 var r=await sb.from('appointments').insert({name:v('an'),phone:v('ap'),purpose:v('pp'),interested_in:v('ai'),appt_date:v('ad2'),time_slot:v('at'),message:v('am2')});
 if(r.error){alert('Could not submit. Please try again.');return}
 done('Appointment Confirmed',v('pp')+' on '+v('ad2')+' at '+v('at')+'. We will call '+v('ap')+' to confirm.','AP-')}
-loadBooked();
+var authM='login';
+function authMode(m){authM=m;var t=$('authTitle'),s=$('authSub'),b=$('authBtn'),sw=$('authSwitch');
+if(m==='signup'){t.textContent='Create Account';s.textContent='Sign up with your email to continue.';b.textContent='Create Account';sw.innerHTML='Already have an account? <a href="#" onclick="authMode(\'login\');return false">Login</a>'}
+else{t.textContent='Login';s.textContent='Login to book a flat or appointment.';b.textContent='Login';sw.innerHTML='New here? <a href="#" onclick="authMode(\'signup\');return false">Create an account</a>'}
+$('authErr').style.display='none'}
+function authErr(m){var e=$('authErr');e.textContent=m;e.style.display='block'}
+async function authGo(){
+var em=$('aEm').value.trim(),pw=$('aPw').value;
+if(!em||!pw){authErr('Please enter email and password.');return}
+if(pw.length<6){authErr('Password must be at least 6 characters.');return}
+$('authBtn').disabled=true;$('authBtn').textContent='Please wait...';
+var r=authM==='signup'?await sb.auth.signUp({email:em,password:pw}):await sb.auth.signInWithPassword({email:em,password:pw});
+$('authBtn').disabled=false;authMode(authM);
+if(r.error){authErr(r.error.message);return}
+if(authM==='signup'&&!r.data.session){authErr('Account created. If email confirmation is required, please check your inbox, then login.');return}
+showApp()}
+async function authLogout(){await sb.auth.signOut();$('nav').style.display='none';$('app').style.display='none';$('auth').style.display='flex';$('aEm').value='';$('aPw').value=''}
+async function authGoogle(){await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href.split('#')[0]}})}
+function showApp(){$('auth').style.display='none';$('nav').style.display='flex';$('app').style.display='block';loadBooked()}
+(async function initAuth(){var s=await sb.auth.getSession();if(s.data.session)showApp()})();
 async function loadHistory(){
 var p=v('hp');if(!/^\d{10}$/.test(p)){alert('Please enter a valid 10-digit mobile number.');return}
 window._hp=p;
