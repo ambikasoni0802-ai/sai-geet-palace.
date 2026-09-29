@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sai Geet Palace – Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#0b1220;--card:#131c2f;--ink:#f3ecd9;--mut:#9aa4b8;--gold:#d4af5f;--line:#243049;--ok:#3ecf8e;--bad:#ef6b63}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif}
+header{display:flex;gap:8px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header b{color:var(--gold);font-size:18px;margin-right:auto}
+button,select,input{font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px 14px}
+button{cursor:pointer}.on{background:var(--gold);color:#14213d;border-color:var(--gold)}
+main{max-width:900px;margin:0 auto;padding:16px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px}.stat b{display:block;font-size:22px;color:var(--gold)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.m{color:var(--mut);font-size:13px}.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;margin-top:10px;font-size:14px}.dl span{color:var(--mut)}
+summary{cursor:pointer;color:var(--gold);margin-top:8px}
+#login{max-width:340px;margin:12vh auto;padding:20px}#login input{width:100%;margin-bottom:10px}
+</style></head><body>
+<div id="login"><h2 style="color:var(--gold)">Admin Login</h2><input id="e" type="email" placeholder="Email"><input id="p" type="password" placeholder="Password"><button class="on" style="width:100%" onclick="login()">Login</button><p id="err" class="m"></p></div>
+<div id="dash" hidden>
+<header><b>Sai Geet Palace · Admin</b><button id="t1" class="on" onclick="tab('bookings')">Bookings</button><button id="t2" onclick="tab('appointments')">Appointments</button><button onclick="load()">Refresh</button><button onclick="csv()">Export CSV</button><button onclick="sb.auth.signOut().then(()=>location.reload())">Logout</button></header>
+<main><div class="stats" id="st"></div><input id="q" placeholder="Search name, phone, flat..." style="width:100%;margin-bottom:12px" oninput="draw()"><div id="list"></div></main></div>
+<script>
+var SUPABASE_URL='https://rcgqjxprqtlipsemeugl.supabase.co',SUPABASE_KEY='sb_publishable_infsKZXhf2rdkOvX77E3wQ_oSho9HqR';
+var sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY),T='bookings',D=[],$=function(i){return document.getElementById(i)};
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+async function login(){var r=await sb.auth.signInWithPassword({email:$('e').value,password:$('p').value});if(r.error){$('err').textContent='Wrong email or password';return}start()}
+async function start(){var s=await sb.auth.getSession();if(!s.data.session)return;$('login').hidden=true;$('dash').hidden=false;load()}
+function tab(t){T=t;$('t1').className=t=='bookings'?'on':'';$('t2').className=t=='appointments'?'on':'';load()}
+async function load(){var r=await sb.from(T).select('*').order('created_at',{ascending:false});D=r.data||[];draw()}
+function draw(){var q=$('q').value.toLowerCase(),L=D.filter(function(x){return JSON.stringify(x).toLowerCase().includes(q)});
+var c=function(s){return D.filter(function(x){return x.status==s}).length};
+$('st').innerHTML=['Total:'+D.length,'Pending:'+c('pending'),'Confirmed:'+c('confirmed'),'Cancelled:'+c('cancelled')].map(function(a){a=a.split(':');return '<div class="stat"><b>'+a[1]+'</b>'+a[0]+'</div>'}).join('');
+$('list').innerHTML=L.map(function(x){var isB=T=='bookings';
+var head=isB?'Flat '+esc(x.flat_no)+' · '+esc(x.name):esc(x.name)+' · '+esc(x.purpose);
+var sub=isB?esc(x.phone)+' · '+new Date(x.created_at).toLocaleString():esc(x.phone)+' · '+esc(x.appt_date)+' '+esc(x.time_slot);
+var det=Object.keys(x).filter(function(k){return!/^(id|created_at|.*_file)$/.test(k)}).map(function(k){return '<div><span>'+k.replace(/_/g,' ')+'</span><br>'+esc(x[k])+'</div>'}).join('');
+var docs=isB?['aadhaar_file','pan_file','photo_file'].filter(function(k){return x[k]}).map(function(k){return '<button onclick="doc(\''+x[k]+'\')">'+k.replace('_file','')+' file</button>'}).join(' '):'';
+return '<div class="card"><div class="top"><div><b>'+head+'</b><div class="m">'+sub+'</div></div><select onchange="setSt(\''+x.id+'\',this.value)">'+['pending','confirmed','cancelled'].map(function(s){return '<option'+(x.status==s?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div><details><summary>Full details</summary><div class="dl">'+det+'</div><div style="margin-top:10px">'+docs+'</div></details></div>'}).join('')||'<p class="m">No records yet.</p>'}
+async function setSt(id,s){await sb.from(T).update({status:s}).eq('id',id);load()}
+async function doc(p){var r=await sb.storage.from('documents').createSignedUrl(p,300);if(r.data)window.open(r.data.signedUrl,'_blank')}
+function csv(){if(!D.length)return;var k=Object.keys(D[0]),rows=[k.join(',')].concat(D.map(function(x){return k.map(function(c){return '"'+String(x[c]==null?'':x[c]).replace(/"/g,'""')+'"'}).join(',')}));
+var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));a.download=T+'.csv';a.click()}
+start();
+</script></body></html>
